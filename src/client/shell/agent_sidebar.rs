@@ -97,6 +97,7 @@ pub(super) fn render_agent_panel_header(
     if area.height == 0 {
         return false;
     }
+    let label_fg = config.palette.sidebar_label_fg();
     put_text(
         buffer,
         area.x,
@@ -114,9 +115,7 @@ pub(super) fn render_agent_panel_header(
         area.y + 1,
         area.width,
         " agents",
-        Style::default()
-            .fg(config.palette.overlay0)
-            .add_modifier(Modifier::BOLD),
+        Style::default().fg(label_fg).add_modifier(Modifier::BOLD),
     );
     let sort_label = agent_view_label.unwrap_or(match config.agent_panel_sort {
         crate::config::AgentPanelSortConfig::Spaces => "grouped",
@@ -144,7 +143,7 @@ pub(super) fn render_agent_panel_header(
             .fg(if agent_view_label.is_some() {
                 config.palette.accent
             } else {
-                config.palette.overlay0
+                label_fg
             })
             .add_modifier(Modifier::BOLD),
     );

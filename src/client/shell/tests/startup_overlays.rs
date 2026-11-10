@@ -684,9 +684,14 @@ fn update_ready_menu_opens_client_owned_release_notes_and_dismisses_by_version()
         shell_buffer[(badge_x, launcher.y)].fg,
         state.config.palette.accent
     );
+    // The default catppuccin palette's readable label color is overlay1 (overlay0 is too dim).
+    assert_eq!(
+        state.config.palette,
+        crate::app::state::Palette::catppuccin()
+    );
     assert_eq!(
         shell_buffer[(badge_x + 2, launcher.y)].fg,
-        state.config.palette.overlay0
+        ratatui::style::Color::Rgb(127, 132, 156)
     );
 
     state.sidebar_collapsed = true;

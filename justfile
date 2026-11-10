@@ -88,6 +88,38 @@ build:
 build:
     python scripts/package_windows_conpty.py build-local
 
+# Build the Intel macOS release binary with the locally downloaded Zig 0.16.0
+[macos]
+build-macos-x86:
+    ZIG="$HOME/.local/share/zig-dl/zig-x86_64-macos-0.16.0/zig" LIBGHOSTTY_VT_OPTIMIZE=ReleaseFast LIBGHOSTTY_VT_SIMD=true cargo build --release --locked --target x86_64-apple-darwin
+
+# Build, back up and atomically install the Intel binary, then restart only the herdr client window
+[macos]
+install-macos-x86: build-macos-x86
+    #!/bin/zsh -f
+    set -e
+    bin="$HOME/.local/bin/herdr"
+    new="target/x86_64-apple-darwin/release/herdr"
+    "$new" --version >/dev/null
+    if [[ -f $bin ]]; then
+      cp -p "$bin" "$bin.bak-$(date +%Y%m%d-%H%M%S)"
+    fi
+    # Same-directory rename, so running processes keep the old file and nothing sees a half-written one.
+    cp "$new" "$bin.new"
+    mv -f "$bin.new" "$bin"
+    echo "installed: $("$bin" --version)"
+    # Restart attached clients only: their command line is exactly "$bin".
+    # The server ("$bin server") and the agents in its panes keep running.
+    clients=($(pgrep -f "^${bin}\$" || true))
+    if (( ${#clients} )); then
+      echo "restarting herdr client(s): $clients"
+      kill $clients
+      sleep 1
+    fi
+    if [[ -d $HOME/Applications/Herdr.app ]]; then
+      open "$HOME/Applications/Herdr.app"
+    fi
+
 # Non-gating full-render scaling profile for background workspaces and active panes
 bench-render-scale:
     cargo test --release --locked --bin herdr render_scale_profile -- --ignored --nocapture --test-threads=1

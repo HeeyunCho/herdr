@@ -23,7 +23,7 @@ impl MobileItem {
             lines: vec![Line::from(Span::styled(
                 format!(" {} ", label.into()),
                 Style::default()
-                    .fg(palette.overlay1)
+                    .fg(palette.sidebar_label_fg())
                     .bg(palette.panel_bg)
                     .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
             ))],
@@ -1129,6 +1129,34 @@ fn render_left_scrollbar(
                 "▌",
                 Style::default().fg(palette.accent).bg(palette.panel_bg),
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::state::{wcag_contrast_ratio, SIDEBAR_LABEL_MIN_CONTRAST};
+
+    #[test]
+    fn mobile_section_headers_meet_readable_contrast_in_built_in_themes() {
+        for name in crate::config::THEME_NAMES
+            .iter()
+            .copied()
+            .filter(|name| *name != "terminal")
+        {
+            let palette = Palette::from_name(name).expect("built-in theme");
+            for label in ["spaces", "agents", "machines", "menu"] {
+                let item = MobileItem::section(label, &palette);
+                let span = &item.lines[0].spans[0];
+                let fg = span.style.fg.expect("section header foreground");
+                let bg = span.style.bg.expect("section header background");
+                let contrast = wcag_contrast_ratio(fg, bg).expect("built-in themes are RGB");
+                assert!(
+                    contrast >= SIDEBAR_LABEL_MIN_CONTRAST,
+                    "{name}: mobile '{label}' header contrast {contrast:.2} is below the minimum"
+                );
+            }
         }
     }
 }
