@@ -527,3 +527,40 @@ fn close_confirmation_error_becomes_client_owned_overlay_and_stable_workspace_cl
             if params.workspace_id == "ws_1" && !params.close_group
     ));
 }
+
+#[test]
+fn sidebar_toggles_use_readable_label_color_in_built_in_themes() {
+    for name in [
+        "nord",
+        "catppuccin",
+        "catppuccin-latte",
+        "gruvbox",
+        "solarized-light",
+    ] {
+        let palette = crate::app::state::Palette::from_name(name).expect("built-in theme");
+        let mut config = ClientShellConfig::from_config(&Config::default());
+        config.palette = palette.clone();
+        let mut state = ClientShellState::new(config);
+        state.set_snapshot(Box::new(snapshot()));
+        state.set_pane_surface(surface());
+
+        for collapsed in [false, true] {
+            state.sidebar_collapsed = collapsed;
+            let frame = state.compose(106, 30).expect("shell frame");
+            let buffer = frame.to_ratatui_buffer().expect("shell buffer");
+            let toggle = state.hits.sidebar_toggle;
+            assert!(!toggle.is_empty(), "{name}: sidebar toggle is drawn");
+            let cell = &buffer[(toggle.x, toggle.y)];
+            assert_eq!(cell.symbol(), if collapsed { "»" } else { "«" });
+            assert_eq!(
+                cell.fg,
+                palette.sidebar_label_fg(),
+                "{name}: toggle (collapsed={collapsed}) uses the readable label color"
+            );
+            assert_ne!(
+                cell.fg, palette.overlay0,
+                "{name}: toggle is not the dim overlay0"
+            );
+        }
+    }
+}

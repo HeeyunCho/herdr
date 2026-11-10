@@ -230,7 +230,7 @@ pub(super) fn render_collapsed(
         hits.sidebar_toggle.y,
         hits.sidebar_toggle.width,
         "»",
-        Style::default().fg(palette.overlay0),
+        Style::default().fg(palette.sidebar_label_fg()),
     );
 }
 
@@ -570,7 +570,7 @@ pub(super) fn render_expanded(
         hits.sidebar_toggle.y,
         hits.sidebar_toggle.width,
         "«",
-        Style::default().fg(palette.overlay0),
+        Style::default().fg(label_fg),
     );
 }
 

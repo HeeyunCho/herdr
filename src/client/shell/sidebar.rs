@@ -191,7 +191,7 @@ pub(crate) fn render_collapsed_sidebar(
                 .fg(palette.accent)
                 .add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(palette.overlay0)
+            Style::default().fg(palette.sidebar_label_fg())
         },
     );
 }
@@ -450,7 +450,7 @@ pub(crate) fn render_sidebar(
         hits.sidebar_toggle.y,
         hits.sidebar_toggle.width,
         "«",
-        Style::default().fg(palette.overlay0),
+        Style::default().fg(label_fg),
     );
 }
 
