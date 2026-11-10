@@ -205,6 +205,7 @@ pub(crate) fn render_sidebar(
     hits: &mut ShellHitMap,
 ) {
     let palette = &config.palette;
+    let label_fg = palette.sidebar_label_fg();
     render_sidebar_background(buffer, area, palette);
     hits.sidebar_divider = if area.is_empty() {
         Rect::default()
@@ -221,9 +222,7 @@ pub(crate) fn render_sidebar(
         workspace_area.y,
         workspace_area.width,
         " spaces",
-        Style::default()
-            .fg(palette.overlay0)
-            .add_modifier(Modifier::BOLD),
+        Style::default().fg(label_fg).add_modifier(Modifier::BOLD),
     );
 
     let entries = workspace_entries(snapshot, state.collapsed_groups);
@@ -389,7 +388,7 @@ pub(crate) fn render_sidebar(
             footer_y,
             workspace_area.width,
             " new",
-            Style::default().fg(palette.overlay0),
+            Style::default().fg(label_fg),
         );
         let attention = super::super::global_menu::global_menu_attention(snapshot);
         let launcher_width = if attention { 8 } else { 6 }.min(workspace_area.width);
@@ -417,7 +416,7 @@ pub(crate) fn render_sidebar(
                 footer_y,
                 4,
                 "menu",
-                Style::default().fg(palette.overlay0),
+                Style::default().fg(label_fg),
             );
         } else {
             put_right_text(
@@ -425,7 +424,7 @@ pub(crate) fn render_sidebar(
                 workspace_area,
                 footer_y,
                 "menu",
-                Style::default().fg(palette.overlay0),
+                Style::default().fg(label_fg),
             );
         }
     }

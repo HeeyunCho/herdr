@@ -243,6 +243,7 @@ pub(super) fn render_expanded(
     hits: &mut ShellHitMap,
 ) {
     let palette = &config.palette;
+    let label_fg = palette.sidebar_label_fg();
     super::render::render_sidebar_background(buffer, area, palette);
     hits.sidebar_divider = if area.is_empty() {
         Rect::default()
@@ -259,9 +260,7 @@ pub(super) fn render_expanded(
         workspace_area.y,
         workspace_area.width,
         " machines",
-        Style::default()
-            .fg(palette.overlay0)
-            .add_modifier(Modifier::BOLD),
+        Style::default().fg(label_fg).add_modifier(Modifier::BOLD),
     );
 
     let empty_collapsed_groups = HashSet::new();
@@ -531,7 +530,7 @@ pub(super) fn render_expanded(
             footer_y,
             workspace_area.width,
             &label,
-            Style::default().fg(palette.overlay0),
+            Style::default().fg(label_fg),
         );
         let attention = active_snapshot.is_some_and(super::global_menu::global_menu_attention);
         let width = if attention { 8 } else { 6 }.min(workspace_area.width);
@@ -546,11 +545,7 @@ pub(super) fn render_expanded(
             workspace_area,
             footer_y,
             if attention { "● menu" } else { "menu" },
-            Style::default().fg(if attention {
-                palette.accent
-            } else {
-                palette.overlay0
-            }),
+            Style::default().fg(if attention { palette.accent } else { label_fg }),
         );
     }
     super::endpoint_agents::render_expanded(

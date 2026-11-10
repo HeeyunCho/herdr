@@ -524,6 +524,31 @@ impl Palette {
         }
     }
 
+    /// Foreground for sidebar chrome labels (section headers, footer actions).
+    ///
+    /// Picks the dimmest secondary text color that stays readable (WCAG 4.5:1)
+    /// on the sidebar background, so labels stay quiet without disappearing.
+    /// Palettes without RGB colors (the `terminal` theme) keep `overlay0`.
+    pub fn sidebar_label_fg(&self) -> Color {
+        let background = match self.sidebar_bg {
+            Color::Rgb(..) => self.sidebar_bg,
+            _ => self.panel_bg,
+        };
+        let Some(background_luminance) = rgb_relative_luminance(background) else {
+            return self.overlay0;
+        };
+        // Dimmest = lowest contrast among the candidates that still pass.
+        [self.overlay0, self.overlay1, self.subtext0]
+            .into_iter()
+            .filter_map(|candidate| {
+                let luminance = rgb_relative_luminance(candidate)?;
+                let contrast = contrast_ratio_from_luminance(luminance, background_luminance);
+                (contrast >= SIDEBAR_LABEL_MIN_CONTRAST).then_some((contrast, candidate))
+            })
+            .min_by(|(a, _), (b, _)| a.total_cmp(b))
+            .map_or(self.text, |(_, candidate)| candidate)
+    }
+
     /// Resolve a theme by name. Returns None for unknown names.
     pub fn from_name(name: &str) -> Option<Self> {
         match crate::config::canonical_theme_name(name)? {
@@ -673,6 +698,38 @@ impl Palette {
         }
         self
     }
+}
+
+/// Minimum WCAG contrast for sidebar chrome labels (AA for normal text).
+pub(crate) const SIDEBAR_LABEL_MIN_CONTRAST: f64 = 4.5;
+
+/// WCAG relative luminance of an RGB color; `None` for indexed/reset colors.
+fn rgb_relative_luminance(color: Color) -> Option<f64> {
+    let Color::Rgb(r, g, b) = color else {
+        return None;
+    };
+    let channel = |value: u8| {
+        let value = f64::from(value) / 255.0;
+        if value <= 0.04045 {
+            value / 12.92
+        } else {
+            ((value + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    Some(0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b))
+}
+
+fn contrast_ratio_from_luminance(a: f64, b: f64) -> f64 {
+    (a.max(b) + 0.05) / (a.min(b) + 0.05)
+}
+
+/// WCAG contrast ratio between two RGB colors; `None` if either is not RGB.
+#[cfg(test)]
+pub(crate) fn wcag_contrast_ratio(a: Color, b: Color) -> Option<f64> {
+    Some(contrast_ratio_from_luminance(
+        rgb_relative_luminance(a)?,
+        rgb_relative_luminance(b)?,
+    ))
 }
 
 /// Geometry for the server-rendered active-tab pane surface.
@@ -1375,27 +1432,12 @@ mod tests {
     }
 
     fn rgb_luminance(color: Color) -> f64 {
-        let Color::Rgb(r, g, b) = color else {
-            panic!("expected RGB color, got {color:?}");
-        };
-        let channel = |value: u8| {
-            let value = f64::from(value) / 255.0;
-            if value <= 0.04045 {
-                value / 12.92
-            } else {
-                ((value + 0.055) / 1.055).powf(2.4)
-            }
-        };
-        0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+        super::rgb_relative_luminance(color)
+            .unwrap_or_else(|| panic!("expected RGB color, got {color:?}"))
     }
 
     fn contrast_ratio(a: Color, b: Color) -> f64 {
-        let (lighter, darker) = {
-            let a = rgb_luminance(a);
-            let b = rgb_luminance(b);
-            (a.max(b), a.min(b))
-        };
-        (lighter + 0.05) / (darker + 0.05)
+        super::contrast_ratio_from_luminance(rgb_luminance(a), rgb_luminance(b))
     }
 
     #[test]
@@ -1406,6 +1448,67 @@ mod tests {
                 "theme should resolve: {name}"
             );
         }
+    }
+
+    #[test]
+    fn built_in_sidebar_labels_meet_readable_contrast() {
+        for name in crate::config::THEME_NAMES
+            .iter()
+            .copied()
+            .filter(|name| *name != "terminal")
+        {
+            let palette = Palette::from_name(name).unwrap();
+            let label = palette.sidebar_label_fg();
+            let contrast = contrast_ratio(label, palette.panel_bg);
+            assert!(
+                contrast >= super::SIDEBAR_LABEL_MIN_CONTRAST,
+                "{name}: sidebar label contrast {contrast:.2} is below the minimum"
+            );
+        }
+    }
+
+    #[test]
+    fn sidebar_label_measures_against_rgb_sidebar_background() {
+        // A light sidebar under a dark theme: the label must be judged against
+        // sidebar_bg, not the (dark) panel_bg, so a dark candidate wins.
+        let mut palette = Palette::nord();
+        palette.sidebar_bg = Color::Rgb(250, 250, 250);
+        palette.overlay0 = Color::Rgb(100, 100, 100);
+        palette.overlay1 = Color::Rgb(140, 140, 140);
+        palette.subtext0 = Color::Rgb(230, 230, 230);
+        let label = palette.sidebar_label_fg();
+        assert_eq!(label, Color::Rgb(100, 100, 100));
+        assert!(contrast_ratio(label, palette.sidebar_bg) >= super::SIDEBAR_LABEL_MIN_CONTRAST);
+        assert!(contrast_ratio(label, palette.panel_bg) < super::SIDEBAR_LABEL_MIN_CONTRAST);
+    }
+
+    #[test]
+    fn sidebar_label_picks_dimmest_passing_candidate() {
+        // overlay1 and subtext0 both pass; subtext0 has the lower contrast, so it
+        // wins even though overlay1 comes first in candidate order.
+        let mut palette = Palette::nord();
+        palette.panel_bg = Color::Rgb(0, 0, 0);
+        palette.overlay0 = Color::Rgb(40, 40, 40);
+        palette.overlay1 = Color::Rgb(200, 200, 200);
+        palette.subtext0 = Color::Rgb(130, 130, 130);
+        assert_eq!(palette.sidebar_label_fg(), Color::Rgb(130, 130, 130));
+    }
+
+    #[test]
+    fn sidebar_label_falls_back_to_text_when_no_candidate_passes() {
+        let mut palette = Palette::nord();
+        palette.panel_bg = Color::Rgb(0, 0, 0);
+        palette.overlay0 = Color::Rgb(20, 20, 20);
+        palette.overlay1 = Color::Rgb(30, 30, 30);
+        palette.subtext0 = Color::Rgb(40, 40, 40);
+        palette.text = Color::Rgb(240, 240, 240);
+        assert_eq!(palette.sidebar_label_fg(), Color::Rgb(240, 240, 240));
+    }
+
+    #[test]
+    fn sidebar_label_keeps_overlay0_for_terminal_palette() {
+        let palette = Palette::terminal();
+        assert_eq!(palette.sidebar_label_fg(), palette.overlay0);
     }
 
     #[test]
